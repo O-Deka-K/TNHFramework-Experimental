@@ -46,6 +46,9 @@ namespace TNHFramework.ObjectTemplates.V1
         public List<Level> LevelsEndless;
 
         [JsonIgnore]
+        public List<VaultFileWrapper> LoadoutVaultOverride;  // ODK - TODO: Handle this
+
+        [JsonIgnore]
         private TNH_CharacterDef character;
 
         [JsonIgnore]
@@ -112,6 +115,7 @@ namespace TNHFramework.ObjectTemplates.V1
 
             RequireSightTable = new EquipmentGroup(character.RequireSightTable);
 
+            LoadoutVaultOverride = (character.LoadoutVaultOverride == null) ? null : [.. character.LoadoutVaultOverride];
             EquipmentPools = character.EquipmentPool.Entries.Select(o => new EquipmentPool(o)).ToList();
             Levels = character.Progressions[0].Levels.Select(o => new Level(o)).ToList();
             LevelsEndless = character.Progressions_Endless[0].Levels.Select(o => new Level(o)).ToList();
@@ -158,6 +162,8 @@ namespace TNHFramework.ObjectTemplates.V1
 
             Shield ??= new();
             Shield.Validate();
+
+            LoadoutVaultOverride ??= [];
 
             EquipmentPools ??= [];
             foreach (EquipmentPool pool in EquipmentPools)
@@ -212,6 +218,7 @@ namespace TNHFramework.ObjectTemplates.V1
                 character.Item_Tertiary = TertiaryItem.GetLoadoutEntry();
                 character.Item_Shield = Shield.GetLoadoutEntry();
                 character.RequireSightTable = RequireSightTable.GetObjectTableDef();
+                character.LoadoutVaultOverride = (LoadoutVaultOverride == null) ? null : [.. LoadoutVaultOverride];
                 character.EquipmentPool = (EquipmentPoolDef)ScriptableObject.CreateInstance(typeof(EquipmentPoolDef));
                 character.EquipmentPool.Entries = EquipmentPools.Select(o => o.GetPoolEntry()).ToList();
 

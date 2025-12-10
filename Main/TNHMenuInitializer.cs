@@ -24,11 +24,7 @@ namespace TNHFramework
         public static bool MagazineCacheFailed = false;
         public static List<TNH_CharacterDef> SavedCharacters;
 
-        private static readonly MethodInfo miGetCatFolderName = typeof(VaultSystem).GetMethod("GetCatFolderName", BindingFlags.Static | BindingFlags.NonPublic);
-        private static readonly MethodInfo miGetSubcatFolderName = typeof(VaultSystem).GetMethod("GetSubcatFolderName", BindingFlags.Static | BindingFlags.NonPublic);
-        private static readonly MethodInfo miGetSuffix = typeof(VaultSystem).GetMethod("GetSuffix", BindingFlags.Static | BindingFlags.NonPublic);
-
-        public static IEnumerator InitializeTNHMenuAsync(string path, Text progressText, Text itemsText, SceneLoader hotdog, List<TNH_UIManager.CharacterCategory> Categories, TNH_CharacterDatabase CharDatabase, TNH_UIManager instance, bool outputFiles)
+        public static IEnumerator InitializeTNHMenuAsync(string path, Text progressText, Text itemsText, TNH_LevelLoader hotdog, List<TNH_UIManager.CharacterCategory> Categories, TNH_CharacterDatabase CharDatabase, TNH_UIManager instance, bool outputFiles)
         {
             hotdog?.gameObject.SetActive(false);
 
@@ -552,6 +548,9 @@ namespace TNHFramework
 
                 foreach (CustomCharacter charDef in characters)
                 {
+                    if (charDef.CategoryData.Name == "Testing Stuff")
+                        continue;
+
                     string jsonPath = path + "/" + CleanFilename(charDef.DisplayName + ".json");
 
                     if (File.Exists(jsonPath))
@@ -738,32 +737,6 @@ namespace TNHFramework
                         string characterString = JsonConvert.SerializeObject(savedGun, Formatting.Indented, new StringEnumConverter());
                         sw.WriteLine(characterString);
                         sw.Close();
-                    }
-                }
-
-                TNHFrameworkLogger.Log("Copying V2 JSON vault files", TNHFrameworkLogger.LogType.File);
-
-                var mode = ItemSpawnerV2.VaultFileDisplayMode.SingleObjects;
-                string[] vaultFileList = VaultSystem.GetFileListForDisplayMode(mode, CynJsonSortingMode.Alphabetical);
-
-                string vaultPath = Path.Combine(CynJson.GetOrCreateH3VRDataPath(), VaultSystem.rootFolderName);
-                //vaultPath = Path.Combine(vaultPath, VaultSystem.GetCatFolderName(mode));
-                //vaultPath = Path.Combine(vaultPath, VaultSystem.GetSubcatFolderName(mode));
-                vaultPath = Path.Combine(vaultPath, (string)miGetCatFolderName.Invoke(null, [mode]));
-                vaultPath = Path.Combine(vaultPath, (string)miGetSubcatFolderName.Invoke(null, [mode]));
-
-                foreach (string vaultFileName in vaultFileList)
-                {
-                    //string filename = vaultFileName + VaultSystem.GetSuffix(mode);
-                    string filename = vaultFileName + (string)miGetSuffix.Invoke(null, [mode]);
-
-                    try
-                    {
-                        File.Copy(Path.Combine(vaultPath, filename), Path.Combine(path, filename), true);
-                    }
-                    catch (Exception ex)
-                    {
-                        TNHFrameworkLogger.LogError($"Vault File {filename} could not be copied: {ex}");
                     }
                 }
             }

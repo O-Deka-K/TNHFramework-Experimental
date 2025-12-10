@@ -13,14 +13,20 @@ namespace TNHFramework.Patches
     {
         private static readonly MethodInfo miPlayButtonSound = typeof(TNH_UIManager).GetMethod("PlayButtonSound", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly MethodInfo miSetCharacter = typeof(TNH_UIManager).GetMethod("SetCharacter", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly MethodInfo miSetCharacterCategoryFromCharacter = typeof(TNH_UIManager).GetMethod("SetCharacterCategoryFromCharacter", BindingFlags.Instance | BindingFlags.NonPublic);
 
-        private static readonly FieldInfo fiSelectedCategory = typeof(TNH_UIManager).GetField("m_selectedCategory", BindingFlags.Instance | BindingFlags.NonPublic);
-        private static readonly FieldInfo fiSelectedCharacter = typeof(TNH_UIManager).GetField("m_selectedCharacter", BindingFlags.Instance | BindingFlags.NonPublic);
-
-        private static OptionsPanel_ButtonSet OBS_Character = null;
         private static int PageCat = 0;
         private static int PageChar = 0;
         private static int LastPlayedChar;
+
+        // Nice try Anton.
+        // Just kidding. It could be useful for disabling TNH for older, incompatible versions of TNHFramework. Or it might just crash.
+        [HarmonyPatch(typeof(TNH_UIManager), "TNHTweakerChecker")]
+        [HarmonyPrefix]
+        public static bool TNHTweakerChecker_Disabler()
+        {
+            return false;
+        }
 
         // Performs initial setup of the TNH Scene when loaded
         [HarmonyPatch(typeof(TNH_UIManager), "Start")]
@@ -36,7 +42,7 @@ namespace TNHFramework.Patches
             // Perform first time setup of all files
             if (!TNHMenuInitializer.TNHInitialized)
             {
-                SceneLoader sceneHotDog = Object.FindObjectOfType<SceneLoader>();
+                TNH_LevelLoader sceneHotDog = Object.FindObjectOfType<TNH_LevelLoader>();
 
                 if (!TNHMenuInitializer.MagazineCacheFailed)
                 {
@@ -78,7 +84,7 @@ namespace TNHFramework.Patches
         private static Text CreateMagazineCacheText(TNH_UIManager manager)
         {
             Text magazineCacheText = Object.Instantiate(manager.SelectedCharacter_Title.gameObject, manager.SelectedCharacter_Title.transform.parent).GetComponent<Text>();
-            magazineCacheText.transform.localPosition = new Vector3(0, 550, 0);
+            magazineCacheText.transform.localPosition = new Vector3(0, 590, 0);
             magazineCacheText.transform.localScale = new Vector3(2, 2, 2);
             magazineCacheText.horizontalOverflow = HorizontalWrapMode.Overflow;
             magazineCacheText.text = "EXAMPLE TEXT";
@@ -89,7 +95,7 @@ namespace TNHFramework.Patches
         private static Text CreateItemsText(TNH_UIManager manager)
         {
             Text itemsText = Object.Instantiate(manager.SelectedCharacter_Title.gameObject, manager.SelectedCharacter_Title.transform.parent).GetComponent<Text>();
-            itemsText.transform.localPosition = new Vector3(-30, 630, 0);
+            itemsText.transform.localPosition = new Vector3(-30, 670, 0);
             itemsText.transform.localScale = new Vector3(1, 1, 1);
             itemsText.text = "";
             itemsText.supportRichText = true;
@@ -108,8 +114,7 @@ namespace TNHFramework.Patches
         private static void ExpandCharacterUI(TNH_UIManager instance)
         {
             LastPlayedChar = GM.TNHOptions.LastPlayedChar;
-            OBS_Character = instance.LBL_CharacterName[0].transform.parent.GetComponent<OptionsPanel_ButtonSet>();
-            List<FVRPointableButton> buttonListChar = [.. OBS_Character.ButtonsInSet];
+            List<FVRPointableButton> buttonListChar = [.. instance.OBS_Character.ButtonsInSet];
             List<FVRPointableButton> buttonListCat = [.. instance.OBS_CharCategory.ButtonsInSet];
 
             // Add 3 more category slots and character slots
@@ -126,7 +131,7 @@ namespace TNHFramework.Patches
                 buttonListCat.Add(newLabelCat.gameObject.GetComponent<FVRPointableButton>());
             }
 
-            OBS_Character.ButtonsInSet = [.. buttonListChar];
+            instance.OBS_Character.ButtonsInSet = [.. buttonListChar];
             instance.OBS_CharCategory.ButtonsInSet = [.. buttonListCat];
 
             // Adjust buttons to be tighter together
@@ -141,7 +146,7 @@ namespace TNHFramework.Patches
                 buttonChar.onClick = new Button.ButtonClickedEvent();
 
                 int index = i;  // Loop optimization fix - do NOT delete
-                buttonChar.onClick.AddListener(() => { OBS_Character.SetSelectedButton(index); });
+                buttonChar.onClick.AddListener(() => { instance.OBS_Character.SetSelectedButton(index); });
                 buttonChar.onClick.AddListener(() => { instance.SetSelectedCharacter(index); });
 
                 instance.LBL_CharacterName[i].transform.localPosition = new Vector3(posXChar, posYChar, 0);
@@ -230,44 +235,49 @@ namespace TNHFramework.Patches
             try
             {
                 miSetCharacter.Invoke(instance, [(TNH_Char)LastPlayedChar]);
-                SetCharacterCategoryFromCharacter(instance, (TNH_Char)LastPlayedChar);
+                miSetCharacterCategoryFromCharacter.Invoke(instance, [(TNH_Char)LastPlayedChar]);
             }
             catch
             {
                 miSetCharacter.Invoke(instance, [TNH_Char.DD_BeginnerBlake]);
-                SetCharacterCategoryFromCharacter(instance, TNH_Char.DD_BeginnerBlake);
+                miSetCharacterCategoryFromCharacter.Invoke(instance, [TNH_Char.DD_BeginnerBlake]);
             }
         }
 
-        public static void SetCharacterCategoryFromCharacter(TNH_UIManager instance, TNH_Char c)
+        [HarmonyPatch(typeof(TNH_UIManager), "SetCharacterCategoryFromCharacter")]
+        [HarmonyPrefix]
+        public static bool SetCharacterCategoryFromCharacter_UIPatch(TNH_UIManager __instance, ref int ___m_selectedCategory, ref int ___m_selectedCharacter, TNH_Char character)
         {
-            for (int i = 0; i < instance.Categories.Count; i++)
+            if (!TNHMenuInitializer.TNHInitialized)
+                return false;
+
+            for (int i = 0; i < __instance.Categories.Count; i++)
             {
-                for (int j = 0; j < instance.Categories[i].Characters.Count; j++)
+                for (int j = 0; j < __instance.Categories[i].Characters.Count; j++)
                 {
-                    if (c == instance.Categories[i].Characters[j])
+                    if (character == __instance.Categories[i].Characters[j])
                     {
-                        //m_selectedCategory = i;
-                        //m_selectedCharacter = j;
-                        fiSelectedCategory.SetValue(instance, i);
-                        fiSelectedCharacter.SetValue(instance, j);
+                        ___m_selectedCategory = i;
+                        ___m_selectedCharacter = j;
 
                         PageCat = i / 10;
                         PageChar = j / 10;
 
-                        DisplayCategories(instance);
-                        DisplayCharacters(instance, i);
+                        DisplayCategories(__instance);
+                        DisplayCharacters(__instance, ___m_selectedCategory);
 
-                        instance.SetSelectedCategory((i % 10) + 1);
-                        instance.OBS_CharCategory.SetSelectedButton((i % 10) + 1);
+                        __instance.SetSelectedCategory((i % 10) + 1);
+                        __instance.OBS_CharCategory.SetSelectedButton((i % 10) + 1);
 
-                        instance.SetSelectedCharacter((j % 10) + 1);
-                        OBS_Character.SetSelectedButton((j % 10) + 1);
+                        __instance.SetSelectedCharacter((j % 10) + 1);
+                        __instance.OBS_Character.SetSelectedButton((j % 10) + 1);
 
-                        return;
+                        break;
                     }
                 }
             }
+
+            return false;
         }
 
         [HarmonyPatch(typeof(TNH_UIManager), "SetSelectedCategory")]
@@ -319,7 +329,7 @@ namespace TNHFramework.Patches
             {
                 PageChar = 0;
                 __instance.SetSelectedCharacter(1);
-                OBS_Character.SetSelectedButton(1);
+                __instance.OBS_Character.SetSelectedButton(1);
             }
 
             return false;
@@ -363,7 +373,7 @@ namespace TNHFramework.Patches
                     i = ___m_selectedCharacter % 10 + 1;
                 }
 
-                OBS_Character.SetSelectedButton(i);
+                __instance.OBS_Character.SetSelectedButton(i);
             }
             else if (i == 11)
             {
@@ -377,7 +387,7 @@ namespace TNHFramework.Patches
                     i = ___m_selectedCharacter % 10 + 1;
                 }
 
-                OBS_Character.SetSelectedButton(i);
+                __instance.OBS_Character.SetSelectedButton(i);
             }
 
             //__instance.PlayButtonSound(1);

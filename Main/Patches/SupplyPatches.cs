@@ -16,6 +16,7 @@ namespace TNHFramework.Patches
         private static readonly MethodInfo miSpawnSecondaryPanel = typeof(TNH_SupplyPoint).GetMethod("SpawnSecondaryPanel", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly MethodInfo miSpawnBoxes = typeof(TNH_SupplyPoint).GetMethod("SpawnBoxes", BindingFlags.Instance | BindingFlags.NonPublic);
 
+        private static readonly FieldInfo fiCurLevel = typeof(TNH_Manager).GetField("m_curLevel", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo fiNumSpawnBonus = typeof(TNH_SupplyPoint).GetField("numSpawnBonus", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo fiActiveSosigs = typeof(TNH_SupplyPoint).GetField("m_activeSosigs", BindingFlags.Instance | BindingFlags.NonPublic);
 
@@ -24,20 +25,27 @@ namespace TNHFramework.Patches
 
         [HarmonyPatch(typeof(TNH_SupplyPoint), "Configure")]
         [HarmonyPrefix]
-        public static bool Configure_Replacement(TNH_SupplyPoint __instance, ref bool ___m_isconfigured, ref bool ___m_hasBeenVisited,
-            TNH_TakeChallenge t, bool spawnSosigs, bool spawnDefenses, bool spawnConstructor, int minBoxPiles, int maxBoxPiles, bool SpawnToken)
+        public static bool Configure_Replacement(TNH_SupplyPoint __instance, ref GameObject ___m_gameBounds, ref System.Random ___m_assortedRand, ref bool ___m_isconfigured,
+            ref bool ___m_hasBeenVisited, TNH_TakeChallenge t, bool spawnSosigs, bool spawnDefenses, bool spawnConstructor, int minBoxPiles, int maxBoxPiles, bool SpawnToken)
         {
             Level level = LoadedTemplateManager.CurrentLevel;
 
+            if (__instance.M.GameMode == TNHSetting_GameMode.Rampart)
+            {
+                ___m_gameBounds = UnityEngine.Object.Instantiate<GameObject>(__instance.M.ResourceLib.Prefab_WarpBounds, __instance.Bounds.transform.position, __instance.Bounds.transform.rotation);
+                ___m_gameBounds.transform.position = __instance.Bounds.transform.position;
+                ___m_gameBounds.transform.rotation = __instance.Bounds.transform.rotation;
+                ___m_gameBounds.transform.localScale = __instance.Bounds.transform.localScale + Vector3.one * 0.1f;
+            }
+
+            ___m_assortedRand = new System.Random(__instance.M.CoreRand.Next());
             __instance.InitLights();
             __instance.T = t;
             ___m_isconfigured = true;
 
             if (spawnSosigs)
             {
-                //__instance.SpawnTakeEnemyGroup();
-                //miSpawnTakeEnemyGroup.Invoke(__instance, []);
-                AnvilManager.Run(SpawnSupplyGroup(__instance, level));
+                AnvilManager.Run(SpawnTakeEnemyGroup(__instance, level));
             }
 
             if (spawnDefenses)
@@ -64,39 +72,6 @@ namespace TNHFramework.Patches
 
             ___m_hasBeenVisited = false;
             return false;
-        }
-
-        public static IEnumerator SpawnSupplyGroup(TNH_SupplyPoint point, Level level)
-        {
-            point.SpawnPoints_Sosigs_Defense.Shuffle<Transform>();
-
-            int numToSpawn = Random.Range(level.SupplyChallenge.NumGuards - 1, level.SupplyChallenge.NumGuards + 1);
-            int numSpawnBonus = (int)fiNumSpawnBonus.GetValue(point);
-            numToSpawn += numSpawnBonus;
-
-            if (!LoadedTemplateManager.CurrentCharacter.isCustom)
-                numToSpawn = Mathf.Clamp(numToSpawn, 0, 5);
-
-            fiNumSpawnBonus.SetValue(point, numSpawnBonus + 1);
-            numToSpawn = Mathf.Clamp(numToSpawn, 0, point.SpawnPoints_Sosigs_Defense.Count);
-
-            TNHFrameworkLogger.Log($"Spawning {numToSpawn} supply guards", TNHFrameworkLogger.LogType.TNH);
-
-            for (int i = 0; i < numToSpawn; i++)
-            {
-                Transform transform = point.SpawnPoints_Sosigs_Defense[i];
-                SosigEnemyTemplate template = ManagerSingleton<IM>.Instance.odicSosigObjsByID[level.SupplyChallenge.GetTakeChallenge().GID];
-
-                Sosig enemy = point.M.SpawnEnemy(template, transform.position, transform.rotation, level.SupplyChallenge.IFFUsed, false, transform.position, true);
-
-                //point.m_activeSosigs.Add(enemy);
-                var activeSosigs = (List<Sosig>)fiActiveSosigs.GetValue(point);
-                activeSosigs.Add(enemy);
-
-                yield return new WaitForSeconds(0.1f);
-            }
-
-            yield break;
         }
 
         [HarmonyPatch(typeof(TNH_SupplyPoint), "SpawnDefenses")]
@@ -142,10 +117,14 @@ namespace TNHFramework.Patches
             List<PanelType> panelTypes;
             int numPanels;
 
-            if (__instance.M.LevelName == "Institution" && !LoadedTemplateManager.CurrentCharacter.isCustom)
+            if (__instance.M.GameMode == TNHSetting_GameMode.Rampart ||
+                (__instance.M.LevelName == "Institution" && !LoadedTemplateManager.CurrentCharacter.isCustom))
             {
                 panelTypes = [PanelType.AmmoReloader, PanelType.MagDuplicator, PanelType.Recycler];
                 numPanels = panelTypes.Count;
+
+                if (LoadedTemplateManager.CurrentCharacter.isCustom)
+                    panelTypes.Shuffle();
             }
             else
             {
@@ -439,44 +418,52 @@ namespace TNHFramework.Patches
             boxComp.SpawnOnShatterRotTypes.Add(UberShatterable.SpawnOnShatterRotationType.StrikeDir);
         }
 
-        [HarmonyPatch(typeof(TNH_SupplyPoint), "SpawnTakeEnemyGroup")]
-        [HarmonyPrefix]
-        public static bool SpawnTakeEnemyGroupReplacement(TNH_SupplyPoint __instance, ref int ___numSpawnBonus, ref List<Sosig> ___m_activeSosigs)
+        public static IEnumerator SpawnTakeEnemyGroup(TNH_SupplyPoint point, Level level)
         {
-            __instance.SpawnPoints_Sosigs_Defense.Shuffle();
-            //__instance.SpawnPoints_Sosigs_Defense.Shuffle();
+            point.SpawnPoints_Sosigs_Defense.Shuffle<Transform>();
 
-            int numGuards;
-            if (LoadedTemplateManager.CurrentCharacter.isCustom)
+            int numToSpawn = Random.Range(level.SupplyChallenge.NumGuards - 1, level.SupplyChallenge.NumGuards + 1);
+            int numSpawnBonus = (int)fiNumSpawnBonus.GetValue(point);
+            numToSpawn += numSpawnBonus;
+
+            if (!LoadedTemplateManager.CurrentCharacter.isCustom)
+                numToSpawn = Mathf.Clamp(numToSpawn, 0, 5);
+
+            fiNumSpawnBonus.SetValue(point, numSpawnBonus + 1);
+            numToSpawn = Mathf.Clamp(numToSpawn, 0, point.SpawnPoints_Sosigs_Defense.Count);
+
+            TNHFrameworkLogger.Log($"Spawning {numToSpawn} supply guards", TNHFrameworkLogger.LogType.TNH);
+
+            for (int i = 0; i < numToSpawn; i++)
             {
-                numGuards = __instance.T.NumGuards;
-            }
-            else
-            {
-                numGuards = Random.Range(__instance.T.NumGuards - 1, __instance.T.NumGuards + 1);
-                numGuards += ___numSpawnBonus;
-                numGuards = Mathf.Clamp(numGuards, 0, 5);
-                ___numSpawnBonus++;
-            }
+                Transform transform = point.SpawnPoints_Sosigs_Defense[i];
+                SosigEnemyTemplate template = ManagerSingleton<IM>.Instance.odicSosigObjsByID[level.SupplyChallenge.GetTakeChallenge().GID];
 
-            TNHFrameworkLogger.Log($"Spawning {__instance.T.NumGuards} supply guards via SpawnTakeEnemyGroup()", TNHFrameworkLogger.LogType.TNH);
+                Sosig enemy = point.M.SpawnEnemy(template, transform.position, transform.rotation, level.SupplyChallenge.IFFUsed, false, transform.position, true);
 
-            for (int i = 0; i < numGuards && i < __instance.SpawnPoints_Sosigs_Defense.Count; i++)
-            {
-                Transform transform = __instance.SpawnPoints_Sosigs_Defense[i];
-                SosigEnemyTemplate template = ManagerSingleton<IM>.Instance.odicSosigObjsByID[__instance.T.GID];
+                //point.m_activeSosigs.Add(enemy);
+                var activeSosigs = (List<Sosig>)fiActiveSosigs.GetValue(point);
+                activeSosigs.Add(enemy);
 
-                Sosig enemy = __instance.M.SpawnEnemy(template, transform.position, transform.rotation, __instance.T.IFFUsed, false, transform.position, true);
-                ___m_activeSosigs.Add(enemy);
+                yield return new WaitForSeconds(0.1f);
             }
 
-            return false;
+            yield break;
         }
 
         [HarmonyPatch(typeof(TNH_SupplyPoint), "ConfigureAtBeginning")]
         [HarmonyPrefix]
-        public static bool SpawnStartingEquipment(TNH_SupplyPoint __instance, ref List<GameObject> ___m_trackedObjects)
+        public static bool SpawnStartingEquipment(TNH_SupplyPoint __instance, ref GameObject ___m_gameBounds, ref System.Random ___m_assortedRand, ref List<GameObject> ___m_trackedObjects, int seed)
         {
+            if (__instance.M.GameMode == TNHSetting_GameMode.Rampart)
+            {
+                ___m_gameBounds = UnityEngine.Object.Instantiate<GameObject>(__instance.M.ResourceLib.Prefab_WarpBounds, __instance.Bounds.transform.position, __instance.Bounds.transform.rotation);
+                ___m_gameBounds.transform.position = __instance.Bounds.transform.position;
+                ___m_gameBounds.transform.rotation = __instance.Bounds.transform.rotation;
+                ___m_gameBounds.transform.localScale = __instance.Bounds.transform.localScale + Vector3.one * 0.1f;
+            }
+
+            ___m_assortedRand = new System.Random(seed);
             __instance.InitLights();
             ___m_trackedObjects.Clear();
 

@@ -40,6 +40,9 @@ namespace TNHFramework.ObjectTemplates
         public List<Level> LevelsEndless = [];
 
         [JsonIgnore]
+        public List<VaultFileWrapper> LoadoutVaultOverride;  // ODK - TODO: Handle this
+
+        [JsonIgnore]
         private TNH_CharacterDef character;
 
         [JsonIgnore]
@@ -90,6 +93,10 @@ namespace TNHFramework.ObjectTemplates
                 case TNH_CharacterDef.CharacterGroup.ChallengingMeals:
                     CategoryData.Name = "Competitive Casings";
                     break;
+
+                case TNH_CharacterDef.CharacterGroup.TestingStuff:
+                    CategoryData.Name = "Testing Stuff";
+                    break;
             }
             CategoryData.Priority = (int)character.Group;
 
@@ -114,6 +121,7 @@ namespace TNHFramework.ObjectTemplates
 
             RequireSightTable = new EquipmentGroup(character.RequireSightTable);
 
+            LoadoutVaultOverride = (character.LoadoutVaultOverride == null) ? null : [.. character.LoadoutVaultOverride];
             EquipmentPools = character.EquipmentPool.Entries.Select(o => new EquipmentPool(o)).ToList();
             Levels = character.Progressions[0].Levels.Select(o => new Level(o)).ToList();
             LevelsEndless = character.Progressions_Endless[0].Levels.Select(o => new Level(o)).ToList();
@@ -146,6 +154,10 @@ namespace TNHFramework.ObjectTemplates
                 case 3:
                     CategoryData.Name = "Competitive Casings";
                     break;
+
+                case 4:
+                    CategoryData.Name = "Testing Stuff";
+                    break;
             }
             CategoryData.Priority = (int)character.CharacterGroup;
             TableID = character.TableID;
@@ -168,6 +180,7 @@ namespace TNHFramework.ObjectTemplates
             SecondaryItem = character.HasSecondaryItem ? new LoadoutEntry(character.SecondaryItem) : new();
             TertiaryItem = character.HasTertiaryItem ? new LoadoutEntry(character.TertiaryItem) : new();
             Shield = character.HasShield ? new LoadoutEntry(character.Shield) : new();
+            LoadoutVaultOverride = (character.LoadoutVaultOverride == null) ? null : [.. character.LoadoutVaultOverride];
 
             EquipmentPools = [];
             foreach (V1.EquipmentPool oldPool in character.EquipmentPools)
@@ -227,6 +240,8 @@ namespace TNHFramework.ObjectTemplates
             Shield ??= new();
             Shield.Validate();
 
+            LoadoutVaultOverride ??= [];
+
             EquipmentPools ??= [];
             foreach (EquipmentPool pool in EquipmentPools)
             {
@@ -282,6 +297,7 @@ namespace TNHFramework.ObjectTemplates
                 character.Has_Item_Shield = Shield.PrimaryGroup != null || Shield.BackupGroup != null;
 
                 character.RequireSightTable = RequireSightTable.GetObjectTableDef();
+                character.LoadoutVaultOverride = (LoadoutVaultOverride == null) ? null : [.. LoadoutVaultOverride];
                 character.EquipmentPool = (EquipmentPoolDef)ScriptableObject.CreateInstance(typeof(EquipmentPoolDef));
                 character.EquipmentPool.Entries = EquipmentPools.Select(o => o.GetPoolEntry()).ToList();
 

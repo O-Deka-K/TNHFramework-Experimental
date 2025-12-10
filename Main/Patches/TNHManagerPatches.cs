@@ -11,6 +11,7 @@ namespace TNHFramework.Patches
 {
     static class TNHManagerPatches
     {
+        private static readonly MethodInfo miKillAllPatrols = typeof(TNH_Manager).GetMethod("KillAllPatrols", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly MethodInfo miGenerateValidPatrol = typeof(TNH_Manager).GetMethod("GenerateValidPatrol", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly MethodInfo miGenerateInitialTakeSentryPatrols = typeof(TNH_Manager).GetMethod("GenerateInitialTakeSentryPatrols", BindingFlags.Instance | BindingFlags.NonPublic);
 
@@ -19,7 +20,14 @@ namespace TNHFramework.Patches
         public static bool DelayedInit_InitTNH(TNH_Manager __instance, bool ___m_hasInit)
         {
             if (!___m_hasInit)
+            {
                 __instance.CharDB.Characters = TNHMenuInitializer.SavedCharacters;
+            }
+
+            // Set Return to Lobby item in wrist menu
+            GM.CurrentSceneSettings.OverridesGoBackToMainMenu = true;
+            GM.CurrentSceneSettings.OverrideReturnToSceneDisplayText = "Return To Lobby";
+            GM.CurrentSceneSettings.OverrideReturnToSceneName = "TakeAndHold_Lobby_2";
 
             return true;
         }
@@ -47,9 +55,13 @@ namespace TNHFramework.Patches
             TNHFramework.PatrolIndexPool.Clear();
             TNHFramework.PreventOutfitFunctionality = LoadedTemplateManager.CurrentCharacter.ForceDisableOutfitFunctionality;
 
+            for (int i = 0; i < __instance.ConstructSpawners.Count; i++)
+                __instance.ConstructSpawners[i].ClearConstructs();
+
             __instance.ResetAlertedThisPhase();
             __instance.ResetPlayerTookDamageThisPhase();
-            __instance.ResetHasGuardBeenKilledThatWasAltered();
+            //__instance.KillAllPatrols();
+            miKillAllPatrols.Invoke(__instance, []);
             ___m_activeSupplyPointIndicies.Clear();
 
             // Reset the TNH radar
@@ -65,8 +77,18 @@ namespace TNHFramework.Patches
             // Get the next hold point and configure it
             ___m_curHoldIndex = GetNextHoldPointIndex(__instance, ___m_curPointSequence, ___m_level, ___m_curHoldIndex);
             ___m_curHoldPoint = __instance.HoldPoints[___m_curHoldIndex];
-            ___m_curHoldPoint.ConfigureAsSystemNode(___m_curLevel.TakeChallenge, ___m_curLevel.HoldChallenge, ___m_curLevel.NumOverrideTokensForHold);
+            ___m_curHoldPoint.ConfigureAsSystemNode(___m_curLevel.TakeChallenge, ___m_curLevel.HoldChallenge, ___m_curLevel.NumOverrideTokensForHold, ___m_level);
             __instance.TAHReticle.RegisterTrackedObject(___m_curHoldPoint.SpawnPoint_SystemNode, TAH_ReticleContact.ContactType.Hold);
+
+            bool spawnSosigs = true;
+            bool spawnDefenses = true;
+            bool spawnConstructor = true;
+            if (__instance.GameMode == TNHSetting_GameMode.Rampart)
+            {
+                spawnSosigs = false;
+                spawnDefenses = false;
+                spawnConstructor = true;
+            }
 
             // Shuffle panel types
             level.PossiblePanelTypes.Shuffle();
@@ -74,7 +96,7 @@ namespace TNHFramework.Patches
             level.PossiblePanelTypes.ForEach(o => TNHFrameworkLogger.Log(o.ToString(), TNHFrameworkLogger.LogType.TNH));
 
             // Ensure ammo reloaders spawn first if this is limited ammo
-            if (level.PossiblePanelTypes.Contains(PanelType.AmmoReloader) && __instance.EquipmentMode != TNHSetting_EquipmentMode.Spawnlocking)
+            if (level.PossiblePanelTypes.Contains(PanelType.AmmoReloader) && __instance.EquipmentMode == TNHSetting_EquipmentMode.LimitedAmmo)
             {
                 level.PossiblePanelTypes.Remove(PanelType.AmmoReloader);
                 level.PossiblePanelTypes.Insert(0, PanelType.AmmoReloader);
@@ -91,7 +113,8 @@ namespace TNHFramework.Patches
 
                 int supplyPointIndex = ___m_curPointSequence.SupplyPoints[___m_level];
                 TNH_SupplyPoint supplyPoint = __instance.SupplyPoints[supplyPointIndex];
-                supplyPoint.Configure(___m_curLevel.SupplyChallenge, true, true, true, TNH_SupplyPoint.SupplyPanelType.All, 2, 3, true);
+                supplyPoint.Configure(level.SupplyChallenge.GetTakeChallenge(), spawnSosigs, spawnDefenses, spawnConstructor, TNH_SupplyPoint.SupplyPanelType.All, 2, 3, true);
+                //SupplyPatches.ConfigureSupplyPoint(supplyPoint, level, spawnSosigs, spawnDefenses, spawnConstructor, 2, 3, true);
                 TAH_ReticleContact contact = __instance.TAHReticle.RegisterTrackedObject(supplyPoint.SpawnPoint_PlayerSpawn, TAH_ReticleContact.ContactType.Supply);
                 supplyPoint.SetContact(contact);
                 ___m_activeSupplyPointIndicies.Add(supplyPointIndex);
@@ -104,7 +127,8 @@ namespace TNHFramework.Patches
                 TNHFrameworkLogger.Log($"Spawning explicit single supply point", TNHFrameworkLogger.LogType.TNH);
 
                 TNH_SupplyPoint supplyPoint = __instance.SupplyPoints[supplyPointIndex];
-                supplyPoint.Configure(___m_curLevel.SupplyChallenge, true, true, true, TNH_SupplyPoint.SupplyPanelType.All, 2, 3, true);
+                supplyPoint.Configure(level.SupplyChallenge.GetTakeChallenge(), spawnSosigs, spawnDefenses, spawnConstructor, TNH_SupplyPoint.SupplyPanelType.All, 2, 3, true);
+                //SupplyPatches.ConfigureSupplyPoint(supplyPoint, level, spawnSosigs, spawnDefenses, spawnConstructor, 2, 3, true);
                 TAH_ReticleContact contact = __instance.TAHReticle.RegisterTrackedObject(supplyPoint.SpawnPoint_PlayerSpawn, TAH_ReticleContact.ContactType.Supply);
                 supplyPoint.SetContact(contact);
                 ___m_activeSupplyPointIndicies.Add(supplyPointIndex);
@@ -115,8 +139,12 @@ namespace TNHFramework.Patches
                 List<int> supplyPointsIndexes = GetNextSupplyPointIndexes(__instance, ___m_curPointSequence, ___m_level, ___m_curHoldIndex);
                 supplyPointsIndexes.Shuffle<int>();
 
-                int numSupplyPoints = Random.Range(level.MinSupplyPoints, level.MaxSupplyPoints + 1);
-                numSupplyPoints = Mathf.Clamp(numSupplyPoints, 0, supplyPointsIndexes.Count);
+                int numSupplyPoints = 1;
+                if (__instance.GameMode != TNHSetting_GameMode.Rampart)
+                {
+                    numSupplyPoints = Random.Range(level.MinSupplyPoints, level.MaxSupplyPoints + 1);
+                    numSupplyPoints = Mathf.Clamp(numSupplyPoints, 0, supplyPointsIndexes.Count);
+                }
 
                 TNHFrameworkLogger.Log($"Spawning {numSupplyPoints} supply points", TNHFrameworkLogger.LogType.TNH);
 
@@ -126,7 +154,8 @@ namespace TNHFramework.Patches
                     TNHFrameworkLogger.Log($"Configuring supply point : {i}", TNHFrameworkLogger.LogType.TNH);
 
                     TNH_SupplyPoint supplyPoint = __instance.SupplyPoints[supplyPointsIndexes[i]];
-                    supplyPoint.Configure(___m_curLevel.SupplyChallenge, true, true, true, TNH_SupplyPoint.SupplyPanelType.All, 1, 2, spawnToken);
+                    supplyPoint.Configure(level.SupplyChallenge.GetTakeChallenge(), spawnSosigs, spawnDefenses, spawnConstructor, TNH_SupplyPoint.SupplyPanelType.AmmoReloader, 1, 2, spawnToken);
+                    //SupplyPatches.ConfigureSupplyPoint(supplyPoint, level, spawnSosigs, spawnDefenses, spawnConstructor, 1, 2, spawnToken);
                     spawnToken = false;
                     TAH_ReticleContact contact = __instance.TAHReticle.RegisterTrackedObject(supplyPoint.SpawnPoint_PlayerSpawn, TAH_ReticleContact.ContactType.Supply);
                     supplyPoint.SetContact(contact);
@@ -134,31 +163,34 @@ namespace TNHFramework.Patches
                 }
             }
 
-            // Spawn the initial patrol
-            if (__instance.UsesClassicPatrolBehavior)
+            if (__instance.GameMode != TNHSetting_GameMode.Rampart)
             {
-                if (___m_level == 0)
+                // Spawn the initial patrol
+                if (__instance.UsesClassicPatrolBehavior)
                 {
-                    //__instance.GenerateValidPatrol(___m_curLevel.PatrolChallenge, ___m_curPointSequence.StartSupplyPointIndex, ___m_curHoldIndex, true);
-                    miGenerateValidPatrol.Invoke(__instance, [___m_curLevel.PatrolChallenge, ___m_curPointSequence.StartSupplyPointIndex, ___m_curHoldIndex, true]);
+                    if (___m_level == 0)
+                    {
+                        //__instance.GenerateValidPatrol(___m_curLevel.PatrolChallenge, ___m_curPointSequence.StartSupplyPointIndex, ___m_curHoldIndex, true);
+                        miGenerateValidPatrol.Invoke(__instance, [___m_curLevel.PatrolChallenge, ___m_curPointSequence.StartSupplyPointIndex, ___m_curHoldIndex, true]);
+                    }
+                    else
+                    {
+                        //__instance.GenerateValidPatrol(___m_curLevel.PatrolChallenge, ___m_curHoldIndex, ___m_curHoldIndex, false);
+                        miGenerateValidPatrol.Invoke(__instance, [___m_curLevel.PatrolChallenge, ___m_curHoldIndex, ___m_curHoldIndex, false]);
+                    }
                 }
                 else
                 {
-                    //__instance.GenerateValidPatrol(___m_curLevel.PatrolChallenge, ___m_curHoldIndex, ___m_curHoldIndex, false);
-                    miGenerateValidPatrol.Invoke(__instance, [___m_curLevel.PatrolChallenge, ___m_curHoldIndex, ___m_curHoldIndex, false]);
-                }
-            }
-            else
-            {
-                if (___m_level == 0)
-                {
-                    //__instance.GenerateInitialTakeSentryPatrols(___m_curLevel.PatrolChallenge, ___m_curPointSequence.StartSupplyPointIndex, -1, ___m_curHoldIndex, true);
-                    miGenerateInitialTakeSentryPatrols.Invoke(__instance, [___m_curLevel.PatrolChallenge, ___m_curPointSequence.StartSupplyPointIndex, -1, ___m_curHoldIndex, true]);
-                }
-                else
-                {
-                    //__instance.GenerateInitialTakeSentryPatrols(___m_curLevel.PatrolChallenge, -1, ___m_curHoldIndex, ___m_curHoldIndex, false);
-                    miGenerateInitialTakeSentryPatrols.Invoke(__instance, [___m_curLevel.PatrolChallenge, -1, ___m_curHoldIndex, ___m_curHoldIndex, false]);
+                    if (___m_level == 0)
+                    {
+                        //__instance.GenerateInitialTakeSentryPatrols(___m_curLevel.PatrolChallenge, ___m_curPointSequence.StartSupplyPointIndex, -1, ___m_curHoldIndex, true);
+                        miGenerateInitialTakeSentryPatrols.Invoke(__instance, [___m_curLevel.PatrolChallenge, ___m_curPointSequence.StartSupplyPointIndex, -1, ___m_curHoldIndex, true]);
+                    }
+                    else
+                    {
+                        //__instance.GenerateInitialTakeSentryPatrols(___m_curLevel.PatrolChallenge, -1, ___m_curHoldIndex, ___m_curHoldIndex, false);
+                        miGenerateInitialTakeSentryPatrols.Invoke(__instance, [___m_curLevel.PatrolChallenge, -1, ___m_curHoldIndex, ___m_curHoldIndex, false]);
+                    }
                 }
             }
 
@@ -260,6 +292,13 @@ namespace TNHFramework.Patches
             }
         }
 
+        [HarmonyPatch(typeof(TNH_Manager), "ClearAllSupplyPoints")]
+        [HarmonyPostfix]
+        public static void AfterClearAllSupplyPoints()
+        {
+            ClearAllPanels();
+        }
+
         [HarmonyPatch(typeof(TNH_Manager), "SetPhase_Hold")]
         [HarmonyPostfix]
         public static void AfterSetHold()
@@ -343,7 +382,7 @@ namespace TNHFramework.Patches
             Sosig sosig = sosigPrefab.GetComponentInChildren<Sosig>();
 
             sosig.Configure(config.GetConfigTemplate());
-            sosig.SetIFF(IFF);
+            sosig.SetIFF(__instance.GameMode == TNHSetting_GameMode.Blitz ? 1 : IFF);
 
             // Set up the sosig's inventory
             sosig.Inventory.Init();
@@ -432,7 +471,11 @@ namespace TNHFramework.Patches
             // Handle sosig dropping custom loot
             if (customTemplate.DroppedObjectPool != null)
             {
-                if (Random.value < customTemplate.DroppedLootChance)
+                float droppedLootChance = customTemplate.DroppedLootChance;
+                if (__instance.GameMode == TNHSetting_GameMode.Rampart)
+                    droppedLootChance /= 2f;
+
+                if (Random.value < droppedLootChance)
                 {
                     SosigLinkLootWrapper component = sosig.Links[2].gameObject.AddComponent<SosigLinkLootWrapper>();
                     component.M = __instance;

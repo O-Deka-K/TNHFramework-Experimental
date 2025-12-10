@@ -157,6 +157,7 @@ namespace TNHFramework
 
                     var deserializer = deserializerBuilder.Build();
                     savedGun = deserializer.Deserialize<VaultFile>(File.ReadAllText(file.FullName));
+                    savedGun.Type = VaultFileType.SingleObject;
 
                     TNHFrameworkLogger.Log("Vault file loaded successfully : " + savedGun.FileName, TNHFrameworkLogger.LogType.File);
                 }
@@ -168,6 +169,7 @@ namespace TNHFramework
                     };
 
                     savedGun = JsonConvert.DeserializeObject<VaultFile>(File.ReadAllText(file.FullName));
+                    savedGun.Type = VaultFileType.SingleObject;
 
                     TNHFrameworkLogger.Log("Vault file loaded successfully : " + savedGun.FileName, TNHFrameworkLogger.LogType.File);
 
