@@ -16,12 +16,29 @@ namespace TNHFramework.Patches
         private static readonly MethodInfo miSpawnSecondaryPanel = typeof(TNH_SupplyPoint).GetMethod("SpawnSecondaryPanel", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly MethodInfo miSpawnBoxes = typeof(TNH_SupplyPoint).GetMethod("SpawnBoxes", BindingFlags.Instance | BindingFlags.NonPublic);
 
-        private static readonly FieldInfo fiCurLevel = typeof(TNH_Manager).GetField("m_curLevel", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo fiNumSpawnBonus = typeof(TNH_SupplyPoint).GetField("numSpawnBonus", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo fiActiveSosigs = typeof(TNH_SupplyPoint).GetField("m_activeSosigs", BindingFlags.Instance | BindingFlags.NonPublic);
 
         public static int NumConstructors;
         public static int PanelIndex = 0;
+
+        [HarmonyPatch(typeof(TNH_SupplyPoint), "Reinforce")]
+        [HarmonyPrefix]
+        public static bool Reinforce_Replacement(TNH_SupplyPoint __instance, ref float ___m_timeSinceReinforceCall, ref List<Sosig> ___m_activeSosigs)
+        {
+            if (__instance.M.GameMode == TNHSetting_GameMode.Rampart)
+                return false;
+
+            if (___m_timeSinceReinforceCall < 8f)
+                return false;
+
+            ___m_timeSinceReinforceCall = 0f;
+
+            if (___m_activeSosigs.Count <= 0)
+                AnvilManager.Run(SpawnTakeEnemyGroup(__instance, LoadedTemplateManager.CurrentLevel));
+
+            return false;
+        }
 
         [HarmonyPatch(typeof(TNH_SupplyPoint), "Configure")]
         [HarmonyPrefix]
@@ -427,9 +444,11 @@ namespace TNHFramework.Patches
             numToSpawn += numSpawnBonus;
 
             if (!LoadedTemplateManager.CurrentCharacter.isCustom)
+            {
                 numToSpawn = Mathf.Clamp(numToSpawn, 0, 5);
+                fiNumSpawnBonus.SetValue(point, numSpawnBonus + 1);
+            }
 
-            fiNumSpawnBonus.SetValue(point, numSpawnBonus + 1);
             numToSpawn = Mathf.Clamp(numToSpawn, 0, point.SpawnPoints_Sosigs_Defense.Count);
 
             TNHFrameworkLogger.Log($"Spawning {numToSpawn} supply guards", TNHFrameworkLogger.LogType.TNH);
