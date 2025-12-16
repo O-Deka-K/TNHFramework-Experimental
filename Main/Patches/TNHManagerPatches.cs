@@ -482,7 +482,7 @@ namespace TNHFramework.Patches
                     component.character = character;
                     component.shouldDropOnCleanup = !character.DisableCleanupSosigDrops;
                     component.group = new(customTemplate.DroppedObjectPool);
-                    component.group.DelayedInit(character.GlobalObjectBlacklist);
+                    component.group.DelayedInit(character.GlobalObjectBlacklist, false);
                 }
             }
 
