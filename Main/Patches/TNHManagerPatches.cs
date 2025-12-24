@@ -21,7 +21,6 @@ namespace TNHFramework.Patches
         {
             if (!___m_hasInit)
             {
-                __instance.CharDB.Characters = TNHMenuInitializer.SavedCharacters;
             }
 
             // Set Return to Lobby item in wrist menu
@@ -378,7 +377,7 @@ namespace TNHFramework.Patches
             }
 
             // Create the sosig object
-            GameObject sosigPrefab = Object.Instantiate(IM.OD[customTemplate.SosigPrefabs.GetRandom<string>()].GetGameObject(), pos, rot);  // ODK - Validate SosigPrefabs
+            GameObject sosigPrefab = Object.Instantiate(IM.OD[customTemplate.SosigPrefabs.GetRandom<string>()].GetGameObject(), pos, rot);
             Sosig sosig = sosigPrefab.GetComponentInChildren<Sosig>();
 
             sosig.Configure(config.GetConfigTemplate());
@@ -412,7 +411,7 @@ namespace TNHFramework.Patches
             }
 
             // Equip clothing to the sosig
-            OutfitConfig outfitConfig = customTemplate.OutfitConfigs.GetRandom<OutfitConfig>();  // ODK - Validate OutfitConfigs
+            OutfitConfig outfitConfig = customTemplate.OutfitConfigs.GetRandom<OutfitConfig>();
 
             int torsoIndex = -1;
             if (outfitConfig.Torsowear.Any() && outfitConfig.Chance_Torsowear >= Random.value)
