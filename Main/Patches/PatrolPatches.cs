@@ -261,7 +261,7 @@ namespace TNHFramework.Patches
 
                         if (hasReachedPatrolPoint)
                         {
-                            SosigEnemyTemplate template = ManagerSingleton<IM>.Instance.odicSosigObjsByID[patrolSquad.ID_Leader];
+                            SosigEnemyTemplate template = patrolSquad.Tem_Leader;
                             SosigTemplate customTemplate = LoadedTemplateManager.LoadedSosigsDict[template];
 
                             // Last patrol point
@@ -556,7 +556,7 @@ namespace TNHFramework.Patches
             {
                 PatrolPoints.Add(instance.HoldPoints[list[i]].SpawnPoints_Sosigs_Defense.GetRandom<Transform>().position);
             }
-            TNHFrameworkLogger.Log($"Patrol path is: {string.Join(", ", list.GetRange(0, Mathf.Min(list.Count, 6)).Select(x => x.ToString()).ToArray())}", TNHFrameworkLogger.LogType.TNH);
+            TNHFrameworkLogger.Log($"Patrol path is: {string.Join(", ", [.. list.GetRange(0, Mathf.Min(list.Count, 6)).Select(x => x.ToString())])}", TNHFrameworkLogger.LogType.TNH);
 
             List<Vector3> SpawnPoints = [];
             List<Vector3> ForwardVectors = [];
@@ -579,12 +579,15 @@ namespace TNHFramework.Patches
                 TNHFramework.SpawnedBossIndexes.Add(patrolIndex);
             }
 
+            SosigEnemyID leaderType = (SosigEnemyID)LoadedTemplateManager.SosigIDDict[patrol.LeaderType];
+            SosigEnemyID enemyType = patrol.EnemyType.Any() ? (SosigEnemyID)LoadedTemplateManager.SosigIDDict[patrol.EnemyType[0]] : SosigEnemyID.None;
+
             TNH_Manager.SosigPatrolSquad squad = new()
             {
                 PatrolPoints = [.. PatrolPoints],
                 IsPatrollingUp = true,
-                ID_Leader = (SosigEnemyID)LoadedTemplateManager.SosigIDDict[patrol.LeaderType],
-                ID_Regular = (patrol.EnemyType.Any()) ? (SosigEnemyID)LoadedTemplateManager.SosigIDDict[patrol.EnemyType[0]] : SosigEnemyID.None,
+                Tem_Leader = ManagerSingleton<IM>.Instance.odicSosigObjsByID[leaderType],
+                Tem_Regular = ManagerSingleton<IM>.Instance.odicSosigObjsByID[enemyType],
                 HoldPointStart = patrolIndex,  // Commandeering this to hold patrolIndex because it's not used anywhere
                 IFF = patrol.IFFUsed,
                 IndexOfNextSpawn = 0,
