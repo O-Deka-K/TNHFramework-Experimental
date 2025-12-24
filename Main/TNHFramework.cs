@@ -15,7 +15,7 @@ using UnityEngine;
 
 namespace TNHFramework
 {
-    [BepInPlugin("h3vr.tnhframework", "TNH Framework", "0.3.1")]
+    [BepInPlugin("h3vr.tnhframework", "TNH Framework", "0.3.2")]
     [BepInDependency(StratumRoot.GUID, StratumRoot.Version)]
     public class TNHFramework : StratumPlugin
     {
