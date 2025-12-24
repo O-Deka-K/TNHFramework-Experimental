@@ -1,4 +1,5 @@
 ﻿using FistVR;
+using FistVR.Ugc;
 using HarmonyLib;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,12 +13,12 @@ namespace TNHFramework.Patches
     static class UIManagerPatches
     {
         private static readonly MethodInfo miPlayButtonSound = typeof(TNH_UIManager).GetMethod("PlayButtonSound", BindingFlags.Instance | BindingFlags.NonPublic);
-        private static readonly MethodInfo miSetCharacter = typeof(TNH_UIManager).GetMethod("SetCharacter", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly MethodInfo miSetCharacterCategoryFromCharacter = typeof(TNH_UIManager).GetMethod("SetCharacterCategoryFromCharacter", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly MethodInfo miAddItemToTree = typeof(UgcManager).GetMethod("AddItemToTree", BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic);
 
         private static int PageCat = 0;
         private static int PageChar = 0;
-        private static int LastPlayedChar;
+        private static string LastPlayedChar;
 
         // Nice try Anton.
         // Just kidding. It could be useful for disabling TNH for older, incompatible versions of TNHFramework. Or it might just crash.
@@ -65,7 +66,7 @@ namespace TNHFramework.Patches
         [HarmonyPostfix]
         public static void Start_InitTNHPost(TNH_UIManager __instance)
         {
-            TNHFrameworkLogger.Log("Start_InitTNHPost", TNHFrameworkLogger.LogType.General);
+            TNHFrameworkLogger.Log("Initialize TNH UI", TNHFrameworkLogger.LogType.General);
 
             __instance.LBL_CategoryName[0].text = "Loading... Please Wait";
             __instance.LBL_CategoryName[0].gameObject.SetActive(true);
@@ -73,7 +74,7 @@ namespace TNHFramework.Patches
             for (int i = 1; i < __instance.LBL_CategoryName.Count; i++)
                 __instance.LBL_CategoryName[i].gameObject.SetActive(false);
 
-            RefreshTNHUI(__instance, __instance.Categories, __instance.CharDatabase);
+            RefreshTNHUI(__instance, __instance.Categories);
         }
 
         /// <summary>
@@ -113,7 +114,8 @@ namespace TNHFramework.Patches
         /// <param name="instance"></param>
         private static void ExpandCharacterUI(TNH_UIManager instance)
         {
-            LastPlayedChar = GM.TNHOptions.LastPlayedChar;
+            LastPlayedChar = GM.TNHOptions.LastPlayedCharUniversalID;
+
             List<FVRPointableButton> buttonListChar = [.. instance.OBS_Character.ButtonsInSet];
             List<FVRPointableButton> buttonListCat = [.. instance.OBS_CharCategory.ButtonsInSet];
 
@@ -170,7 +172,7 @@ namespace TNHFramework.Patches
             }
         }
 
-        public static void RefreshTNHUI(TNH_UIManager instance, List<TNH_UIManager.CharacterCategory> Categories, TNH_CharacterDatabase CharDatabase)
+        public static void RefreshTNHUI(TNH_UIManager instance, List<TNH_UIManager.CharacterCategory> Categories)
         {
             if (!TNHMenuInitializer.TNHInitialized)
                 return;
@@ -191,19 +193,17 @@ namespace TNHFramework.Patches
 
             // Load all characters into the UI
 
-            Dictionary<string, int> catDic = new()
+            Dictionary<string, int> catDic = [];
+            foreach (string category in instance.CharDatabase.DefaultGroupNames)
             {
-                ["Daring Defaults"] = 0,
-                ["Wieners Through Time"] = 1,
-                ["Memetastic Meats"] = 2,
-                ["Competitive Casings"] = 3,
-            };
+                catDic.Add(category, -1);
+            }
 
-            foreach (KeyValuePair<TNH_Char, CharacterTemplate> character in LoadedTemplateManager.LoadedCharacterDict)
+            foreach (KeyValuePair<string, CharacterTemplate> character in LoadedTemplateManager.LoadedCharacterDict)
             {
                 ObjectTemplates.CategoryInfo catData = character.Value.Custom.CategoryData;
 
-                if (!catDic.ContainsKey(catData.Name))
+                if (catData.Name != "" && !catDic.ContainsKey(catData.Name))
                     catDic.Add(catData.Name, Mathf.Max(0, catData.Priority));
             }
 
@@ -222,16 +222,18 @@ namespace TNHFramework.Patches
 
             // Sort the custom characters by name
             Dictionary<int, List<CharacterTemplate>> sortedDic = [];
+            List<string> ugcIds = [];
 
-            foreach (KeyValuePair<TNH_Char, CharacterTemplate> character in LoadedTemplateManager.LoadedCharacterDict)
+            foreach (KeyValuePair<string, CharacterTemplate> character in LoadedTemplateManager.LoadedCharacterDict)
             {
                 int cat = Categories.FindIndex(o => o.CategoryName == character.Value.Custom.CategoryData.Name);
 
-                // Add character to category
-                if (!Categories[cat].Characters.Contains(character.Key))
-                {
-                    character.Value.Custom.CharacterGroup = cat;
+                if (cat == -1)
+                    continue;
 
+                // Add character to category
+                if (!Categories[cat].Characters.Contains(character.Value.Def))
+                {
                     if (character.Value.Custom.isCustom)
                     {
                         if (sortedDic.ContainsKey(cat))
@@ -241,35 +243,43 @@ namespace TNHFramework.Patches
                     }
                     else
                     {
-                        Categories[cat].Characters.Add(character.Key);
+                        Categories[cat].Characters.Add(character.Value.Def);
                     }
 
-                    CharDatabase.Characters.Add(character.Value.Def);
+                    ItemTreeNode<TNH_CharacterDef> node = UgcManager.GetRootNode<TNH_CharacterDef>();
+
+                    if (!ugcIds.Contains(character.Value.Def.UgcId))
+                    {
+                        ugcIds.Add(character.Value.Def.UgcId);
+
+                        //UgcManager.AddItemToTree<TNH_CharacterDef>(character.Value.Def, node);
+                        MethodInfo miAddItemToTreeTNHChar = miAddItemToTree.MakeGenericMethod(typeof(TNH_CharacterDef));
+                        miAddItemToTreeTNHChar.Invoke(null, [character.Value.Def, node]);
+                    }
                 }
             }
 
             // Sort the custom characters before adding them
             foreach (KeyValuePair<int, List<CharacterTemplate>> character in sortedDic)
             {
-                Categories[character.Key].Characters.AddRange([.. character.Value.OrderBy(o => o.Def.DisplayName).Select(o => o.Def.CharacterID)]);
+                Categories[character.Key].Characters.AddRange([.. character.Value.OrderBy(o => o.Def.DisplayName).Select(o => o.Def)]);
             }
 
             // Refresh categories and characters
-            try
+            if (!UgcManager.TryGetItem(LastPlayedChar, out TNH_CharacterDef charDef))
+                UgcManager.TryGetItem("h3vr:Generic_0_BeginnerBlake", out charDef);
+
+            if (charDef != null)
             {
-                miSetCharacter.Invoke(instance, [(TNH_Char)LastPlayedChar]);
-                miSetCharacterCategoryFromCharacter.Invoke(instance, [(TNH_Char)LastPlayedChar]);
-            }
-            catch
-            {
-                miSetCharacter.Invoke(instance, [TNH_Char.DD_BeginnerBlake]);
-                miSetCharacterCategoryFromCharacter.Invoke(instance, [TNH_Char.DD_BeginnerBlake]);
+                instance.SetCharacter(charDef);
+                //instance.SetCharacterCategoryFromCharacter(charDef);
+                miSetCharacterCategoryFromCharacter.Invoke(instance, [charDef]);
             }
         }
 
         [HarmonyPatch(typeof(TNH_UIManager), "SetCharacterCategoryFromCharacter")]
         [HarmonyPrefix]
-        public static bool SetCharacterCategoryFromCharacter_UIPatch(TNH_UIManager __instance, ref int ___m_selectedCategory, ref int ___m_selectedCharacter, TNH_Char character)
+        public static bool SetCharacterCategoryFromCharacter_UIPatch(TNH_UIManager __instance, ref int ___m_selectedCategory, ref int ___m_selectedCharacter, TNH_CharacterDef character)
         {
             if (!TNHMenuInitializer.TNHInitialized)
                 return false;
@@ -419,12 +429,11 @@ namespace TNHFramework.Patches
 
             ___m_selectedCharacter = i - 1 + PageChar * 10;
 
-            TNH_Char character = __instance.Categories[___m_selectedCategory].Characters[___m_selectedCharacter];
-            if (LoadedTemplateManager.LoadedCharacterDict.ContainsKey(character))
-                LoadedTemplateManager.CurrentCharacter = LoadedTemplateManager.LoadedCharacterDict[character].Custom;
+            TNH_CharacterDef charDef = __instance.Categories[___m_selectedCategory].Characters[___m_selectedCharacter];
+            if (LoadedTemplateManager.LoadedCharacterDict.ContainsKey(charDef.UgcId))
+                LoadedTemplateManager.CurrentCharacter = LoadedTemplateManager.LoadedCharacterDict[charDef.UgcId].Custom;
 
-            //__instance.SetCharacter(character);
-            miSetCharacter.Invoke(__instance, [character]);
+            __instance.SetCharacter(charDef);
 
             return false;
         }
@@ -437,7 +446,7 @@ namespace TNHFramework.Patches
                 if (i + PageChar * 10 < instance.Categories[selectedCategory].Characters.Count)
                 {
                     instance.LBL_CharacterName[i + 1].gameObject.SetActive(true);
-                    TNH_CharacterDef def = instance.CharDatabase.GetDef(instance.Categories[selectedCategory].Characters[i + PageChar * 10]);
+                    TNH_CharacterDef def = instance.Categories[selectedCategory].Characters[i + PageChar * 10];
                     instance.LBL_CharacterName[i + 1].text = (i + 1 + PageChar * 10).ToString() + ". " + def.DisplayName;
                 }
                 else
