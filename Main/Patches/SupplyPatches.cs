@@ -456,7 +456,12 @@ namespace TNHFramework.Patches
             for (int i = 0; i < numToSpawn; i++)
             {
                 Transform transform = point.SpawnPoints_Sosigs_Defense[i];
-                SosigEnemyTemplate template = ManagerSingleton<IM>.Instance.odicSosigObjsByID[level.SupplyChallenge.GetTakeChallenge().GID];
+
+                SosigEnemyTemplate template;
+                if (point.T.OverrideGID == null)
+                    template = ManagerSingleton<IM>.Instance.odicSosigObjsByID[level.SupplyChallenge.GetTakeChallenge().GID];
+                else
+                    template = point.T.OverrideGID;
 
                 Sosig enemy = point.M.SpawnEnemy(template, transform.position, transform.rotation, level.SupplyChallenge.IFFUsed, false, transform.position, true);
 
