@@ -12,9 +12,9 @@ A successor to DevynDaMonster's [TNHTweaker](https://thunderstore.io/c/h3vr/p/de
 
 ## H3VR Build Version
 
-This is for H3VR experimental build 120b7, which is currently on Experimental branch (as of Dec 2025). It will NOT work on any other branch (like Main), as there are many incompatible changes. There is a separate version of TNHFramework for build 119.
+This is for H3VR experimental build 120b9, which is currently on Experimental branch (as of Dec 2025). It will NOT work on any other branch (like Main), as there are many incompatible changes. There is a separate version of TNHFramework for build 119.
 
-If you have this beta version, then please DISABLE TNHFramework 0.2x (non-experimental version) while using this mod. You MUST be on Experimental branch. There's a chance it could stop working past build 120b7. Other mods are not guaranteed to work on Experimental.
+If you have this beta version, then please DISABLE TNHFramework 0.2.x (non-experimental version) while using this mod. You MUST be on Experimental branch. There's a chance it could stop working past build 120b9. Other mods are not guaranteed to work on Experimental.
 
 ## What is this?
 
