@@ -170,3 +170,8 @@
   - Adjusted number of guards spawned at supply points.
   - Added ODekaK-MagazinePatcher as a dependency.
 - Fixed supply reinforcements in big levels (Northest Dakota).
+
+## [0.3.2-beta] - 2025-12-25
+
+- Updated to work with H3VR build 120b9.
+- Checks H3VR build number and disables itself if it's not the correct version.
