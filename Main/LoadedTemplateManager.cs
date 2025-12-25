@@ -92,7 +92,7 @@ namespace TNHFramework
 
             if (LoadedCharacterDict.ContainsKey(charDef.UgcId))
             {
-                TNHFrameworkLogger.Log($"Character already exists ({charDef.UgcId} [{template.TableID}]) : " + template.DisplayName, TNHFrameworkLogger.LogType.Character);
+                TNHFrameworkLogger.Log($"Character already exists ({charDef.UgcId} [{template.TableID}]) : " + template.DisplayName, TNHFrameworkLogger.LogType.General);
                 return;
             }
 
@@ -104,14 +104,14 @@ namespace TNHFramework
                 EquipmentPoolDictionary.Add(template.EquipmentPools[i].GetPoolEntry(charDef.UgcId, i, "EquipmentPool"), template.EquipmentPools[i]);
             }
 
-            TNHFrameworkLogger.Log($"Character added successfully ({charDef.UgcId} [{template.TableID}]) : " + template.DisplayName, TNHFrameworkLogger.LogType.Character);
+            TNHFrameworkLogger.Log($"Character added successfully ({charDef.UgcId} [{template.TableID}]) : " + template.DisplayName, TNHFrameworkLogger.LogType.General);
         }
 
         public static void AddCharacterTemplate(TNH_CharacterDef charDef)
         {
             if (LoadedCharacterDict.ContainsKey(charDef.UgcId))
             {
-                TNHFrameworkLogger.Log($"Character already exists ({charDef.UgcId} [{charDef.TableID}]) : " + charDef.DisplayName, TNHFrameworkLogger.LogType.Character);
+                TNHFrameworkLogger.Log($"Character already exists ({charDef.UgcId} [{charDef.TableID}]) : " + charDef.DisplayName, TNHFrameworkLogger.LogType.General);
                 return;
             }
 
@@ -131,7 +131,7 @@ namespace TNHFramework
                 }
             }
 
-            TNHFrameworkLogger.Log($"Character added successfully ({charDef.UgcId} [{charDef.TableID}]) : " + charDef.DisplayName, TNHFrameworkLogger.LogType.Character);
+            TNHFrameworkLogger.Log($"Character added successfully ({charDef.UgcId} [{charDef.TableID}]) : " + charDef.DisplayName, TNHFrameworkLogger.LogType.General);
         }
 
         public static void AddVaultFile(VaultFile template)
