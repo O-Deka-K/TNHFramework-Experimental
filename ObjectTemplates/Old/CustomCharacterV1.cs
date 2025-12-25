@@ -117,7 +117,6 @@ namespace TNHFramework.ObjectTemplates.V1
                         1 => "Wieners Through Time",
                         2 => "Memetastic Meats",
                         3 => "Competitive Casings",
-                        4 => "Testing Stuff",
                         _ => "Daring Defaults",
                     };
                 }
